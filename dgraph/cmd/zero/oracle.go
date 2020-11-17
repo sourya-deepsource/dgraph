@@ -113,13 +113,14 @@ func (o *Oracle) purgeBelow(minTs uint64) {
 	o.Lock()
 	defer o.Unlock()
 	stats := o.keyCommit.Stats()
+	timer.Record("stats1")
 	// Dropping would be cheaper if abort/commits map is sharded
 	for ts := range o.commits {
 		if ts < minTs {
 			delete(o.commits, ts)
 		}
 	}
-	timer.Record("basic")
+	timer.Record("o.commits")
 	// There is no transaction running with startTs less than minTs
 	// So we can delete everything from rowCommit whose commitTs < minTs
 	o.keyCommit.DeleteBelow(minTs)
@@ -127,7 +128,7 @@ func (o *Oracle) purgeBelow(minTs uint64) {
 	o.tmax = minTs
 	glog.Infof("Purged below ts:%d, len(o.commits):%d, keyCommit: [before: %+v, after: %+v]\n",
 		minTs, len(o.commits), stats, o.keyCommit.Stats())
-	timer.Record("stats")
+	timer.Record("stats2")
 }
 
 func (o *Oracle) commit(src *api.TxnContext) error {
