@@ -297,6 +297,13 @@ func (n *node) handleTabletProposal(tablet *pb.Tablet) error {
 }
 
 func (n *node) applyProposal(e raftpb.Entry) (string, error) {
+	var timer x.Timer
+	timer.Start()
+	defer func(){
+		if timer.Total() > 10*time.Millisecond {
+			glog.Warningf("[applyProposal] %s", timer.String())
+		}
+	}()
 	var p pb.ZeroProposal
 	// Raft commits empty entry on becoming a leader.
 	if len(e.Data) == 0 {
@@ -328,6 +335,7 @@ func (n *node) applyProposal(e raftpb.Entry) (string, error) {
 		state.MaxRaftId = p.MaxRaftId
 		n.server.nextRaftId = x.Max(n.server.nextRaftId, p.MaxRaftId+1)
 	}
+	timer.Record("basic")
 	if p.SnapshotTs != nil {
 		for gid, ts := range p.SnapshotTs {
 			if group, ok := state.Groups[gid]; ok {
@@ -342,6 +350,7 @@ func (n *node) applyProposal(e raftpb.Entry) (string, error) {
 			n.server.orc.purgeBelow(purgeTs)
 		}
 	}
+	timer.Record("snapshot")
 	if p.Member != nil {
 		if err := n.handleMemberProposal(p.Member); err != nil {
 			span.Annotatef(nil, "While applying membership proposal: %+v", err)
@@ -349,6 +358,7 @@ func (n *node) applyProposal(e raftpb.Entry) (string, error) {
 			return p.Key, err
 		}
 	}
+	timer.Record("member")
 	if p.Tablet != nil {
 		if err := n.handleTabletProposal(p.Tablet); err != nil {
 			span.Annotatef(nil, "While applying tablet proposal: %v", err)
@@ -356,6 +366,7 @@ func (n *node) applyProposal(e raftpb.Entry) (string, error) {
 			return p.Key, err
 		}
 	}
+	timer.Record("tablet")
 	if p.License != nil {
 		// Check that the number of nodes in the cluster should be less than MaxNodes, otherwise
 		// reject the proposal.
@@ -371,7 +382,7 @@ func (n *node) applyProposal(e raftpb.Entry) (string, error) {
 		expiry := time.Unix(state.License.ExpiryTs, 0).UTC()
 		state.License.Enabled = time.Now().UTC().Before(expiry)
 	}
-
+	timer.Record("license")
 	switch {
 	case p.MaxLeaseId > state.MaxLeaseId:
 		state.MaxLeaseId = p.MaxLeaseId
@@ -385,8 +396,8 @@ func (n *node) applyProposal(e raftpb.Entry) (string, error) {
 	}
 	if p.Txn != nil {
 		n.server.orc.updateCommitStatus(e.Index, p.Txn)
+		timer.Record("commitStatus")
 	}
-
 	return p.Key, nil
 }
 
@@ -757,6 +768,7 @@ func (n *node) Run() {
 				var state pb.MembershipState
 				x.Check(state.Unmarshal(rd.Snapshot.Data))
 				n.server.SetMembershipState(&state)
+				timer.Record("membershipUpdate")
 			}
 
 			for _, entry := range rd.CommittedEntries {
@@ -772,6 +784,7 @@ func (n *node) Run() {
 						glog.Errorf("While applying proposal: %v\n", err)
 					}
 					n.Proposals.Done(key, err)
+					timer.Record("applyProposal")
 
 				default:
 					glog.Infof("Unhandled entry: %+v\n", entry)
@@ -779,7 +792,7 @@ func (n *node) Run() {
 				n.Applied.Done(entry.Index)
 			}
 			span.Annotatef(nil, "Applied %d CommittedEntries", len(rd.CommittedEntries))
-
+			timer.Record("allEntries")
 			if !leader {
 				// Followers should send messages later.
 				for i := range rd.Messages {

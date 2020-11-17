@@ -105,6 +105,11 @@ func (o *Oracle) hasConflict(src *api.TxnContext) bool {
 }
 
 func (o *Oracle) purgeBelow(minTs uint64) {
+	var timer x.Timer
+	timer.Start()
+	defer func() {
+		glog.Warningf("[purgeBelow] %s", timer.String())
+	}()
 	o.Lock()
 	defer o.Unlock()
 	stats := o.keyCommit.Stats()
@@ -114,12 +119,15 @@ func (o *Oracle) purgeBelow(minTs uint64) {
 			delete(o.commits, ts)
 		}
 	}
+	timer.Record("basic")
 	// There is no transaction running with startTs less than minTs
 	// So we can delete everything from rowCommit whose commitTs < minTs
 	o.keyCommit.DeleteBelow(minTs)
+	timer.Record("deleteBelow")
 	o.tmax = minTs
 	glog.Infof("Purged below ts:%d, len(o.commits):%d, keyCommit: [before: %+v, after: %+v]\n",
 		minTs, len(o.commits), stats, o.keyCommit.Stats())
+	timer.Record("stats")
 }
 
 func (o *Oracle) commit(src *api.TxnContext) error {
