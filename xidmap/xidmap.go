@@ -91,7 +91,7 @@ func New(zero *grpc.ClientConn, db *badger.DB) *XidMap {
 	}
 	for i := range xm.shards {
 		xm.shards[i] = &shard{
-			tree: z.NewTree(100 << 20),
+			tree: z.NewTree("", 100 << 20),
 		}
 	}
 	if db != nil {
