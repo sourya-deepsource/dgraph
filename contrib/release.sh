@@ -68,7 +68,7 @@ rm -Rf $GOPATH
 mkdir $GOPATH
 
 # Necessary to pick up Gobin binaries like protoc-gen-gofast
-PATH="$GOPATH/bin:$PATH"
+export PATH="$GOPATH/bin:$PATH"
 
 # The Go version used for release builds must match this version.
 GOVERSION=${GOVERSION:-"1.14.4"}
