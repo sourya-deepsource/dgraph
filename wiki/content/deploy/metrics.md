@@ -6,7 +6,7 @@ weight = 15
     parent = "deploy"
 +++
 
-
+ 
 Dgraph database provides metrics on disk activity, memory usage, Dgraph instance
 activity and server node health; along with built-in metrics provided by Go.
 Dgraph metrics follow the
