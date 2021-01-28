@@ -8,6 +8,8 @@ which protoc &>/dev/null || (echo "Error: protoc not found" >&2; exit 1)
 
 PROTOCVER=`protoc --version | awk '{printf $2}'`
 
+
+
 # CompareSemVer compares the minimum version minver against another version curver.
 # If the version is below our min it will exit with non-zero to trigger error in make.
 function CompareSemVer() {
