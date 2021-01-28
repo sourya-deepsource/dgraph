@@ -40,6 +40,8 @@ function CheckProtobufIncludes() {
 	fi
 }
 
+
+
 CompareSemVer $PROTOCMINVER $PROTOCVER
 echo "OK"
 
